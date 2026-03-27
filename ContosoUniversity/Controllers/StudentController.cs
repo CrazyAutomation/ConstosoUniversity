@@ -1,21 +1,19 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Data;
-using System.Data.Entity;
+using System.Data.Entity.Infrastructure;
 using System.Linq;
 using System.Net;
-using System.Web;
 using System.Web.Mvc;
 using ContosoUniversity.DAL;
 using ContosoUniversity.Models;
 using PagedList;
-using System.Data.Entity.Infrastructure;
+
 
 namespace ContosoUniversity.Controllers
 {
     public class StudentController : Controller
     {
-        private SchoolContext db = new SchoolContext();
+        private readonly ISchoolRepository repo = new InMemorySchoolRepository();
 
         // GET: Student
         public ViewResult Index(string sortOrder, string currentFilter, string searchString, int? page)
@@ -35,7 +33,7 @@ namespace ContosoUniversity.Controllers
 
             ViewBag.CurrentFilter = searchString;
 
-            var students = from s in db.Students
+            var students = from s in repo.Students
                            select s;
             if (!String.IsNullOrEmpty(searchString))
             {
@@ -71,7 +69,8 @@ namespace ContosoUniversity.Controllers
             {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
             }
-            Student student = db.Students.Find(id);
+            // Fix for CS1061: use LINQ to find the student by ID
+            Student student = repo.Students.FirstOrDefault(s => s.ID == id);
             if (student == null)
             {
                 return HttpNotFound();
@@ -90,14 +89,15 @@ namespace ContosoUniversity.Controllers
         // more details see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Create([Bind(Include = "LastName, FirstMidName, EnrollmentDate")]Student student)
+        public ActionResult Create([Bind(Include = "LastName, FirstMidName, EnrollmentDate")] Student student)
         {
             try
             {
                 if (ModelState.IsValid)
                 {
-                    db.Students.Add(student);
-                    db.SaveChanges();
+                    // Use the repository Entry API to mark the student as added, since repo.Students is IQueryable<T>
+                    repo.Entry(student).State = System.Data.Entity.EntityState.Added;
+                    repo.SaveChanges();
                     return RedirectToAction("Index");
                 }
             }
@@ -117,13 +117,15 @@ namespace ContosoUniversity.Controllers
             {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
             }
-            Student student = db.Students.Find(id);
+            // Use LINQ to find the student by ID since repo.Students is IQueryable<Student>
+            Student student = repo.Students.FirstOrDefault(s => s.ID == id);
             if (student == null)
             {
                 return HttpNotFound();
             }
             return View(student);
         }
+
 
         // POST: Student/Edit/5
         // To protect from overposting attacks, please enable the specific properties you want to bind to, for 
@@ -136,14 +138,20 @@ namespace ContosoUniversity.Controllers
             {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
             }
-            var studentToUpdate = db.Students.Find(id);
+
+            // Use LINQ to find the student by ID since repo.Students is IQueryable<Student>
+            Student studentToUpdate = repo.Students.FirstOrDefault(s => s.ID == id);
+            if (studentToUpdate == null)
+            {
+                return HttpNotFound();
+            }
+
             if (TryUpdateModel(studentToUpdate, "",
                new string[] { "LastName", "FirstMidName", "EnrollmentDate" }))
             {
                 try
                 {
-                    db.SaveChanges();
-
+                    repo.SaveChanges();
                     return RedirectToAction("Index");
                 }
                 catch (RetryLimitExceededException /* dex */)
@@ -166,7 +174,9 @@ namespace ContosoUniversity.Controllers
             {
                 ViewBag.ErrorMessage = "Delete failed. Try again, and if the problem persists see your system administrator.";
             }
-            Student student = db.Students.Find(id);
+
+            // Use LINQ to find the student by ID
+            Student student = repo.Students.FirstOrDefault(s => s.ID == id);
             if (student == null)
             {
                 return HttpNotFound();
@@ -181,9 +191,14 @@ namespace ContosoUniversity.Controllers
         {
             try
             {
-                Student student = db.Students.Find(id);
-                db.Students.Remove(student);
-                db.SaveChanges();
+                // Find the student via LINQ and mark it deleted via the repository Entry API
+                Student student = repo.Students.FirstOrDefault(s => s.ID == id);
+                if (student == null)
+                {
+                    return RedirectToAction("Index");
+                }
+                repo.Entry(student).State = System.Data.Entity.EntityState.Deleted;
+                repo.SaveChanges();
             }
             catch (RetryLimitExceededException/* dex */)
             {
@@ -192,13 +207,15 @@ namespace ContosoUniversity.Controllers
             }
             return RedirectToAction("Index");
         }
+
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                db.Dispose();
+                repo.Dispose();
             }
             base.Dispose(disposing);
         }
+
     }
 }

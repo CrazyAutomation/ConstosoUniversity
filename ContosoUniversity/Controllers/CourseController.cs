@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Data;
+﻿using System.Data;
 using System.Data.Entity;
 using System.Linq;
 using System.Net;
@@ -14,131 +12,132 @@ namespace ContosoUniversity.Controllers
 {
     public class CourseController : Controller
     {
-        private SchoolContext db = new SchoolContext();
+        private readonly ISchoolRepository repo = new InMemorySchoolRepository();
 
         // GET: Course
-        public ActionResult Index(int? SelectedDepartment)
+        public ActionResult Index(int? selectedDepartment)
         {
-            var departments = db.Departments.OrderBy(q => q.Name).ToList();
-            ViewBag.SelectedDepartment = new SelectList(departments, "DepartmentID", "Name", SelectedDepartment);
-            int departmentID = SelectedDepartment.GetValueOrDefault();
+            var departments = repo.Departments
+                .OrderBy(d => d.Name)
+                .ToList();
 
-            IQueryable<Course> courses = db.Courses
-                .Where(c => !SelectedDepartment.HasValue || c.DepartmentID == departmentID)
-                .OrderBy(d => d.CourseID)
-                .Include(d => d.Department);
-            var sql = courses.ToString();
-            return View(courses.ToList());
+            ViewBag.SelectedDepartment = new SelectList(
+                departments, "DepartmentID", "Name", selectedDepartment);
+
+            int departmentId = selectedDepartment ?? 0;
+
+            var courses = repo.Courses
+                .Include(c => c.Department)
+                .Where(c => !selectedDepartment.HasValue || c.DepartmentID == departmentId)
+                .OrderBy(c => c.CourseID)
+                .ToList();
+
+            return View(courses);
         }
 
         // GET: Course/Details/5
         public ActionResult Details(int? id)
         {
             if (id == null)
-            {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
-            Course course = db.Courses.Find(id);
+
+            var course = repo.Courses.FirstOrDefault(c => c.CourseID == id.Value);
+
             if (course == null)
-            {
                 return HttpNotFound();
-            }
+
             return View(course);
         }
 
-
+        // GET: Course/Create
         public ActionResult Create()
         {
             PopulateDepartmentsDropDownList();
             return View();
         }
 
+        // POST: Course/Create
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public ActionResult Create([Bind(Include = "CourseID,Title,Credits,DepartmentID")]Course course)
+        public ActionResult Create([Bind(Include = "CourseID,Title,Credits,DepartmentID")] Course course)
         {
             try
             {
                 if (ModelState.IsValid)
                 {
-                    db.Courses.Add(course);
-                    db.SaveChanges();
+                    // ISchoolRepository exposes IQueryable<T> for Courses, which doesn't provide Add().
+                    // Use the repository's Entry to mark the entity as Added so SaveChanges will insert it.
+                    repo.Entry(course).State = EntityState.Added;
+                    repo.SaveChanges();
                     return RedirectToAction("Index");
                 }
             }
-            catch (RetryLimitExceededException /* dex */)
+            catch (RetryLimitExceededException)
             {
-                //Log the error (uncomment dex variable name and add a line here to write a log.)
-                ModelState.AddModelError("", "Unable to save changes. Try again, and if the problem persists, see your system administrator.");
+                ModelState.AddModelError("", "Unable to save changes. Try again later.");
             }
+
             PopulateDepartmentsDropDownList(course.DepartmentID);
             return View(course);
         }
 
+        // GET: Course/Edit/5
         public ActionResult Edit(int? id)
         {
             if (id == null)
-            {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
-            Course course = db.Courses.Find(id);
+
+            var course = repo.Courses.FirstOrDefault(c => c.CourseID == id.Value);
+
             if (course == null)
-            {
                 return HttpNotFound();
-            }
+
             PopulateDepartmentsDropDownList(course.DepartmentID);
             return View(course);
         }
 
+        // POST: Course/Edit/5
         [HttpPost, ActionName("Edit")]
         [ValidateAntiForgeryToken]
         public ActionResult EditPost(int? id)
         {
             if (id == null)
-            {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
-            var courseToUpdate = db.Courses.Find(id);
+
+            var courseToUpdate = repo.Courses.FirstOrDefault(c => c.CourseID == id.Value);
+
+            if (courseToUpdate == null)
+                return HttpNotFound();
+
             if (TryUpdateModel(courseToUpdate, "",
-               new string[] { "Title", "Credits", "DepartmentID" }))
+                new[] { "Title", "Credits", "DepartmentID" }))
             {
                 try
                 {
-                    db.SaveChanges();
-
+                    repo.SaveChanges();
                     return RedirectToAction("Index");
                 }
-                catch (RetryLimitExceededException /* dex */)
+                catch (RetryLimitExceededException)
                 {
-                    //Log the error (uncomment dex variable name and add a line here to write a log.
-                    ModelState.AddModelError("", "Unable to save changes. Try again, and if the problem persists, see your system administrator.");
+                    ModelState.AddModelError("", "Unable to save changes. Try again later.");
                 }
             }
+
             PopulateDepartmentsDropDownList(courseToUpdate.DepartmentID);
             return View(courseToUpdate);
         }
-
-        private void PopulateDepartmentsDropDownList(object selectedDepartment = null)
-        {
-            var departmentsQuery = from d in db.Departments
-                                   orderby d.Name
-                                   select d;
-            ViewBag.DepartmentID = new SelectList(departmentsQuery, "DepartmentID", "Name", selectedDepartment);
-        }
-
 
         // GET: Course/Delete/5
         public ActionResult Delete(int? id)
         {
             if (id == null)
-            {
                 return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
-            }
-            Course course = db.Courses.Find(id);
+
+            var course = repo.Courses.FirstOrDefault(c => c.CourseID == id.Value);
+
             if (course == null)
-            {
                 return HttpNotFound();
-            }
+
             return View(course);
         }
 
@@ -147,33 +146,58 @@ namespace ContosoUniversity.Controllers
         [ValidateAntiForgeryToken]
         public ActionResult DeleteConfirmed(int id)
         {
-            Course course = db.Courses.Find(id);
-            db.Courses.Remove(course);
-            db.SaveChanges();
+            var course = repo.Courses.FirstOrDefault(c => c.CourseID == id);
+
+            if (course != null)
+            {
+                repo.Entry(course).State = EntityState.Deleted;
+                repo.SaveChanges();
+            }
+
             return RedirectToAction("Index");
         }
 
+        // GET: Course/UpdateCourseCredits
         public ActionResult UpdateCourseCredits()
         {
             return View();
         }
 
+        // POST: Course/UpdateCourseCredits
         [HttpPost]
         public ActionResult UpdateCourseCredits(int? multiplier)
         {
-            if (multiplier != null)
+            if (multiplier.HasValue)
             {
-                ViewBag.RowsAffected = db.Database.ExecuteSqlCommand("UPDATE Course SET Credits = Credits * {0}", multiplier);
+                // IRepository doesn't expose Database.ExecuteSqlCommand; update entities and save.
+                var courses = repo.Courses.ToList();
+                foreach (var c in courses)
+                {
+                    c.Credits = c.Credits * multiplier.Value;
+                    repo.Entry(c).State = EntityState.Modified;
+                }
+
+                ViewBag.RowsAffected = repo.SaveChanges();
             }
+
             return View();
+        }
+
+        private void PopulateDepartmentsDropDownList(object selectedDepartment = null)
+        {
+            var departments = repo.Departments
+                .OrderBy(d => d.Name)
+                .ToList();
+
+            ViewBag.DepartmentID = new SelectList(
+                departments, "DepartmentID", "Name", selectedDepartment);
         }
 
         protected override void Dispose(bool disposing)
         {
             if (disposing)
-            {
-                db.Dispose();
-            }
+                repo.Dispose();
+
             base.Dispose(disposing);
         }
     }
