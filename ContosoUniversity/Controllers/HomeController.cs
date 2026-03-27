@@ -1,17 +1,14 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Web;
 using System.Web.Mvc;
 using ContosoUniversity.DAL;
 using ContosoUniversity.ViewModels;
-
 
 namespace ContosoUniversity.Controllers
 {
     public class HomeController : Controller
     {
-        private SchoolContext db = new SchoolContext();
+        private readonly ISchoolRepository repo = new InMemorySchoolRepository();
 
         public ActionResult Index()
         {
@@ -20,34 +17,31 @@ namespace ContosoUniversity.Controllers
 
         public ActionResult About()
         {
-            // Commenting out LINQ to show how to do the same thing in SQL.
-            //IQueryable<EnrollmentDateGroup> = from student in db.Students
-            //           group student by student.EnrollmentDate into dateGroup
-            //           select new EnrollmentDateGroup()
-            //           {
-            //               EnrollmentDate = dateGroup.Key,
-            //               StudentCount = dateGroup.Count()
-            //           };
+            // LINQ version (works with InMemorySchoolRepository)
+            var data = repo.Students
+                .GroupBy(s => s.EnrollmentDate)
+                .Select(g => new EnrollmentDateGroup
+                {
+                    EnrollmentDate = g.Key,
+                    StudentCount = g.Count()
+                })
+                .OrderBy(g => g.EnrollmentDate)
+                .ToList();
 
-            // SQL version of the above LINQ code.
-            string query = "SELECT EnrollmentDate, COUNT(*) AS StudentCount "
-                + "FROM Person "
-                + "WHERE Discriminator = 'Student' "
-                + "GROUP BY EnrollmentDate";
-            IEnumerable<EnrollmentDateGroup> data = db.Database.SqlQuery<EnrollmentDateGroup>(query);
-
-            return View(data.ToList());
+            return View(data);
         }
+
         public ActionResult Contact()
         {
             ViewBag.Message = "Your contact page.";
-
             return View();
         }
 
         protected override void Dispose(bool disposing)
         {
-            db.Dispose();
+            if (disposing)
+                repo.Dispose();
+
             base.Dispose(disposing);
         }
     }

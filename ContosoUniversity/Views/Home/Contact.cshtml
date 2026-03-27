@@ -1,17 +1,41 @@
 ﻿@{
     ViewBag.Title = "Contact";
 }
-<h2>@ViewBag.Title.</h2>
-<h3>@ViewBag.Message</h3>
 
-<address>
-    One Microsoft Way<br />
-    Redmond, WA 98052-6399<br />
-    <abbr title="Phone">P:</abbr>
-    425.555.0100
-</address>
+<h2 class="mt-3">@ViewBag.Title</h2>
 
-<address>
-    <strong>Support:</strong>   <a href="mailto:Support@example.com">Support@example.com</a><br />
-    <strong>Marketing:</strong> <a href="mailto:Marketing@example.com">Marketing@example.com</a>
-</address>
+@if (!String.IsNullOrEmpty(ViewBag.Message))
+{
+    <p class="text-muted">@ViewBag.Message</p>
+}
+
+<div class="card shadow-sm mt-4">
+    <div class="card-body">
+
+        <h4 class="mb-3">Head Office</h4>
+        <hr />
+
+        <address class="mb-4">
+            <strong>Contoso University</strong><br />
+            One Microsoft Way<br />
+            Redmond, WA 98052-6399<br />
+            <abbr title="Phone">Phone:</abbr> 425‑555‑0100
+        </address>
+
+        <h4 class="mb-3">Contact Departments</h4>
+        <hr />
+
+        <address>
+            <p>
+                <strong>Support:</strong>
+                <a href="mailto:Support@example.com">Support@example.com</a>
+            </p>
+
+            <p>
+                <strong>Marketing:</strong>
+                <a href="mailto:Marketing@example.com">Marketing@example.com</a>
+            </p>
+        </address>
+
+    </div>
+</div>

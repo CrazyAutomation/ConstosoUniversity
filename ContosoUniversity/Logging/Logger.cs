@@ -6,76 +6,72 @@ namespace ContosoUniversity.Logging
 {
     public class Logger : ILogger
     {
-
-        public void Information(string message)
-        {
+        // -----------------------------
+        // Information
+        // -----------------------------
+        public void Information(string message) =>
             Trace.TraceInformation(message);
-        }
 
-        public void Information(string fmt, params object[] vars)
-        {
-            Trace.TraceInformation(fmt, vars);
-        }
+        public void Information(string message, params object[] args) =>
+            Trace.TraceInformation(message, args);
 
-        public void Information(Exception exception, string fmt, params object[] vars)
-        {
-            Trace.TraceInformation(FormatExceptionMessage(exception, fmt, vars));
-        }
+        public void Information(Exception exception, string message, params object[] args) =>
+            Trace.TraceInformation(FormatExceptionMessage(exception, message, args));
 
-        public void Warning(string message)
-        {
+        // -----------------------------
+        // Warning
+        // -----------------------------
+        public void Warning(string message) =>
             Trace.TraceWarning(message);
-        }
 
-        public void Warning(string fmt, params object[] vars)
-        {
-            Trace.TraceWarning(fmt, vars);
-        }
+        public void Warning(string message, params object[] args) =>
+            Trace.TraceWarning(message, args);
 
-        public void Warning(Exception exception, string fmt, params object[] vars)
-        {
-            Trace.TraceWarning(FormatExceptionMessage(exception, fmt, vars));
-        }
+        public void Warning(Exception exception, string message, params object[] args) =>
+            Trace.TraceWarning(FormatExceptionMessage(exception, message, args));
 
-        public void Error(string message)
-        {
+        // -----------------------------
+        // Error
+        // -----------------------------
+        public void Error(string message) =>
             Trace.TraceError(message);
+
+        public void Error(string message, params object[] args) =>
+            Trace.TraceError(message, args);
+
+        public void Error(Exception exception, string message, params object[] args) =>
+            Trace.TraceError(FormatExceptionMessage(exception, message, args));
+
+        // -----------------------------
+        // API Tracing
+        // -----------------------------
+        public void TraceApi(string component, string method, TimeSpan duration) =>
+            TraceApi(component, method, duration, string.Empty);
+
+        public void TraceApi(string component, string method, TimeSpan duration, string message, params object[] args) =>
+            TraceApi(component, method, duration, string.Format(message, args));
+
+        public void TraceApi(string component, string method, TimeSpan duration, string properties)
+        {
+            var msg = $"Component:{component}; Method:{method}; Duration:{duration}; Properties:{properties}";
+            Trace.TraceInformation(msg);
         }
 
-        public void Error(string fmt, params object[] vars)
+        // -----------------------------
+        // Helpers
+        // -----------------------------
+        private static string FormatExceptionMessage(Exception exception, string message, params object[] args)
         {
-            Trace.TraceError(fmt, vars);
-        }
-
-        public void Error(Exception exception, string fmt, params object[] vars)
-        {
-            Trace.TraceError(FormatExceptionMessage(exception, fmt, vars));
-        }
-
-        public void TraceApi(string componentName, string method, TimeSpan timespan)
-        {
-            TraceApi(componentName, method, timespan, "");
-        }
-
-        public void TraceApi(string componentName, string method, TimeSpan timespan, string fmt, params object[] vars)
-        {
-            TraceApi(componentName, method, timespan, string.Format(fmt, vars));
-        }
-        public void TraceApi(string componentName, string method, TimeSpan timespan, string properties)
-        {
-            string message = String.Concat("Component:", componentName, ";Method:", method, ";Timespan:", timespan.ToString(), ";Properties:", properties);
-            Trace.TraceInformation(message);
-        }
-
-        private static string FormatExceptionMessage(Exception exception, string fmt, object[] vars)
-        {
-            // Simple exception formatting: for a more comprehensive version see 
-            // http://code.msdn.microsoft.com/windowsazure/Fix-It-app-for-Building-cdd80df4
             var sb = new StringBuilder();
-            sb.Append(string.Format(fmt, vars));
-            sb.Append(" Exception: ");
-            sb.Append(exception.ToString());
+
+            if (!string.IsNullOrWhiteSpace(message))
+                sb.AppendFormat(message, args);
+
+            sb.Append(" | Exception: ");
+            sb.Append(exception);
+
             return sb.ToString();
         }
+
     }
 }
